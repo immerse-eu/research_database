@@ -242,7 +242,7 @@ if __name__ == '__main__':
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     # define variables
-    sql_lite_database_name = config['localPaths']['maganamed_ecrf_files']
+    sql_lite_database_name = config['database_name']
 
     # Create connection to SQLite database
     conn = create_connection(sql_lite_database_name)
