@@ -1,0 +1,9 @@
+# Configuration for immerse-eu/immerse-dqa
+# rename this file to config.yaml and enter/extend content below
+
+# Local directories
+localPaths:
+  maganamed_ecrf_files: C:/temp/DMMH-database/maganamed_export
+  momentapp_sites_files_path: C:/temp/DMMH-database/momentapp_data
+
+database_name: DMMH_database_v1.db
