@@ -163,5 +163,6 @@ cython_debug/
 /codebook.yaml
 /config.yaml
 /all_participant_identifiers.xlsx
+/*.db
 maganamed_export/
 momentapp_data/
