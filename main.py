@@ -159,6 +159,23 @@ def import_maganamed_data_into_sqllite(conn, eCRF_filename, csv_data, codebook):
                              "I-CA-P-023$": "I-CA-P-023wrong", "I-CA-P-023v": "I-CA-P-023",
                              }, regex=True, inplace=True)
 
+            #TODO ADD HERE MORE LOGIC TO ADAPT FOR CHANGES IN MAGANAMED_IDS DURING THE PROJECT
+
+            # As discussed in the e-mails below, we are generating new ID code for some Edinburgh’s participant using the following format “e.g. IC-P-001_c) and under this newly generated ID, we will be collecting clinicians assessment and also any subsequent participant assessment. We will update the data management team on a monthly basis with a list of modified ID for data merging. I have attached our internal SOP for more information on this.
+            # Here is our list of modified IDs for January 2024
+            # Original ID	New ID	        New ID usage time point
+            # I-CA-P-004	I-CA-P-004_c	T2 for clinician, T3 for participant
+            # I-CA-P-006	I-CA-P-006_c	T2 for clinician, T2 for participant
+            # I-CA-P-007	I-CA-P-007_c	T2 for clinician, T2 for participant
+            # I-CA-P-010	I-CA-P-010_c	T3 for participant, T2 for clinician
+            # I-LO-P-006	I-LO-P-006_c	T2 for participant, T2 for clinician
+            # I-CA-P-008	I-CA-P-08_c	    T2 for clinician , ESM T2 for participant
+            # I-CA-P-013	I-CA-P-013_c	T3 for participant, T2 for clinician
+            # We will get in touch with you end of February for any new modified ID.
+            # Best wishes,
+            # Fatene
+
+
             # import query to insert data (row) into table
             row_data_import_query = 'INSERT INTO ' + eCRF_name_for_query + ' VALUES (\'' + "\', \'".join(map(str, (list(row)))) + '\')'
             # execute insert query
@@ -170,21 +187,38 @@ def import_momentapp_data_into_sqllite(conn, site_filename, csv_data):
     cursor = conn.cursor()
 
     # reformat eCRF filename to allow the usage as db table name
-    site_name_for_query = site_filename.rsplit('.csv')[0].replace('-', '_').replace('(', '').replace(')', '')
+    site_name_for_query = site_filename.rsplit('_flattened')[0].replace('-', '_').replace('(', '').replace(')', '')
 
-    csv_data_transformed = csv_data.transpose()
+    column_number = len(csv_data.columns)
+
+    # first 9 columns are general columns - afterwards triplicates of id, status, value define (sub)interactions data
+    id_status_value_col_number = (column_number - 9) / 3
+
+    final_string = []
+    for i in range(int(id_status_value_col_number)):
+        string = "id_" + str(i) + " Text, " + "status_" + str(i) + " Text, " + "value_" + str(i) + " Text, "
+        final_string.append(string)
+    print(final_string)
+
+
+    # TODO: GO ON HERE WITH NEW CODE!
+
+    ## create final query string
+    #create_table_query = 'CREATE TABLE IF NOT EXISTS ' + site_name_for_query + "_moment_app" + ' (' + table_column_string + ')'
+    ## execute SQL query to create table
+    #cursor.execute(create_table_query)
+
+
+
     for index, row in csv_data.iterrows():
         table_columns = row.keys()
         table_column_string = ""
         for table_column in table_columns:
             table_column_string = table_column_string + table_column + " TEXT,"
-        table_column_string = table_column_string[:-1] + ', PRIMARY KEY (pseudonym)'
+        table_column_string = table_column_string[:-1] + ', PRIMARY KEY (pseudonym, trigger_name, trigger_time_start )'
 
 
-    # create final query string
-    create_table_query = 'CREATE TABLE IF NOT EXISTS ' + site_name_for_query + ' (' + table_column_string + ')'
-    # execute SQL query to create table
-    cursor.execute(create_table_query)
+
 
 
 def use_maganamed_data(conn, config):
@@ -216,6 +250,8 @@ def use_maganamed_data(conn, config):
         # save all participant_identifiers into an excel file
         ids.to_excel("all_participant_identifiers.xlsx", index=False)
 
+
+# TODO: GO ON HERE WITH CODING
 # Still under testing - CURRENTLY NOT WORKING!
 def use_momentapp_data(conn, config):
     momentapp_sites_files_path = config['localPaths']['momentapp_sites_files_path']
@@ -248,7 +284,7 @@ if __name__ == '__main__':
     conn = create_connection(sql_lite_database_name)
 
     use_maganamed_data(conn, config)
-    #use_momentapp_data(conn, config)
+    # use_momentapp_data(conn, config)
 
     if conn:
         # Finally commit db transaction/queries and close db connection
