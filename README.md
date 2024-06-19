@@ -1,2 +1,3 @@
 # research_database
-Includes code to import data from different sources into the research database
+
+Python scripts to import data from multiple data capture platforms to a central relational research database in the IMMERSE consortium
