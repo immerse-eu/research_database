@@ -7,13 +7,13 @@ import os
 
 def create_connection(db_file):
     """ create a database connection to a SQLite database """
-    conn = None
+    connection = None
     try:
-        conn = sqlite3.connect(db_file)
-        print(sqlite3.version)
+        connection = sqlite3.connect(db_file)
+        print("version:", sqlite3.sqlite_version)
     except Error as e:
         print(e)
-    return conn
+    return connection
 
 
 def read_codebook_yaml(codebook_filename):
@@ -24,8 +24,10 @@ def read_codebook_yaml(codebook_filename):
     return codebook
 
 
-def get_target_eCRF(Dictionary, eCRF_filename):
+# GET Maganamed data
+def get_maganamed_ecrf_target(Dictionary, eCRF_filename):
     """ scan through yaml file to find eCRF target and return index"""
+    # Questionnarie daten (Maganamed)
     for key1 in Dictionary.keys():
         item = {key1: key2 for key2 in Dictionary[key1].keys() if eCRF_filename in Dictionary[key1][key2].values()}
         if len(item) > 0:
@@ -37,7 +39,7 @@ def create_data_types_string_for_query(codebook, eCRF_filename):
     print(eCRF_filename)
 
     # get target eCRF index in codebook.yaml file
-    eCRF_search_result = get_target_eCRF(codebook, eCRF_filename)['eCRFs']
+    eCRF_search_result = get_maganamed_ecrf_target(codebook, eCRF_filename)['eCRFs']
 
     # first seven columns which are identical in most Maganamed eCRFs
     common_first_seven_columns = '''participant_identifier TEXT,
@@ -182,24 +184,14 @@ def import_maganamed_data_into_sqllite(conn, eCRF_filename, csv_data, codebook):
             cursor.execute(row_data_import_query)
 
 
-def import_momentapp_data_into_sqllite(conn, site_filename, csv_data):
+## Flattern data = momentapp
+def import_momentapp_data_into_sqllite(conn, filename, csv_data):
     # Create cursor with SQLite db connection
     cursor = conn.cursor()
 
-    # reformat eCRF filename to allow the usage as db table name
-    site_name_for_query = site_filename.rsplit('_flattened')[0].replace('-', '_').replace('(', '').replace(')', '')
-
-    column_number = len(csv_data.columns)
-
-    # first 9 columns are general columns - afterwards triplicates of id, status, value define (sub)interactions data
-    id_status_value_col_number = (column_number - 9) / 3
-
-    final_string = []
-    for i in range(int(id_status_value_col_number)):
-        string = "id_" + str(i) + " Text, " + "status_" + str(i) + " Text, " + "value_" + str(i) + " Text, "
-        final_string.append(string)
-    print(final_string)
-
+    csv_data.to_sql(filename, conn, if_exists='replace', index=False)
+    cursor.close()
+    print(f"Table {filename} created")
 
     # TODO: GO ON HERE WITH NEW CODE!
 
@@ -207,18 +199,6 @@ def import_momentapp_data_into_sqllite(conn, site_filename, csv_data):
     #create_table_query = 'CREATE TABLE IF NOT EXISTS ' + site_name_for_query + "_moment_app" + ' (' + table_column_string + ')'
     ## execute SQL query to create table
     #cursor.execute(create_table_query)
-
-
-
-    for index, row in csv_data.iterrows():
-        table_columns = row.keys()
-        table_column_string = ""
-        for table_column in table_columns:
-            table_column_string = table_column_string + table_column + " TEXT,"
-        table_column_string = table_column_string[:-1] + ', PRIMARY KEY (pseudonym, trigger_name, trigger_time_start )'
-
-
-
 
 
 def use_maganamed_data(conn, config):
@@ -254,20 +234,18 @@ def use_maganamed_data(conn, config):
 # TODO: GO ON HERE WITH CODING
 # Still under testing - CURRENTLY NOT WORKING!
 def use_momentapp_data(conn, config):
-    momentapp_sites_files_path = config['localPaths']['momentapp_sites_files_path']
+    dmmh_momentapp = config['localPaths']['dmmh_momentapp']
 
     # get all .csv filenames in export folder
-    site_filenames = os.listdir(momentapp_sites_files_path)
-
-    # loop through all eCRF files - perform import of data into db
-    for site_filename in site_filenames:
-        # only use files with .csv filetype
-        if site_filename.endswith('.csv'):
-            # load momentApp csv data into Python
-            csv_data = pd.read_csv(momentapp_sites_files_path + '/' + site_filename, sep=",")
-
-            # load Maganamed csv data into SQL db
-            import_momentapp_data_into_sqllite(conn, site_filename, csv_data)
+    for root, dirs, files in os.walk(dmmh_momentapp):
+        for filename in files:
+            # only use files with .csv filetype
+            if filename.endswith('.csv'):
+                # load momentApp csv data into Python
+                csv_data = pd.read_csv(root + '/' + filename, sep=",", low_memory=False)
+                # load Momentapp csv data into SQL db
+                filename = filename.replace(".csv", "")
+                import_momentapp_data_into_sqllite(conn, filename, csv_data)
 
     # save all participant_identifiers into an excel file
 
@@ -281,12 +259,13 @@ if __name__ == '__main__':
     sql_lite_database_name = config['database_name']
 
     # Create connection to SQLite database
-    conn = create_connection(sql_lite_database_name)
+    connect = create_connection(sql_lite_database_name)
+    if connect is not None: print("Successful connection to SQLite database")
 
-    use_maganamed_data(conn, config)
-    # use_momentapp_data(conn, config)
+    # use_maganamed_data(conn, config)
+    use_momentapp_data(connect, config)
 
-    if conn:
+    if connect:
         # Finally commit db transaction/queries and close db connection
-        conn.commit()
-        conn.close()
+        connect.commit()
+        connect.close()
