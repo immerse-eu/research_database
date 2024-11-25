@@ -5,8 +5,8 @@ import yaml
 import os
 
 
+# Create a database connection to a SQLite database
 def create_connection(db_file):
-    """ create a database connection to a SQLite database """
     connection = None
     try:
         connection = sqlite3.connect(db_file)
@@ -16,15 +16,14 @@ def create_connection(db_file):
     return connection
 
 
+# Read configuration file
 def read_codebook_yaml(codebook_filename):
-    """ read codebook_yaml file in """
-    # Read configuration file
-    with open(codebook_filename, "r") as f:
-        codebook = yaml.load(f, Loader=yaml.FullLoader)
+    with open(codebook_filename, "r") as file:
+        codebook = yaml.load(file, Loader=yaml.FullLoader)
     return codebook
 
 
-# GET Maganamed data
+# TODO: OBTAIN Maganamed data (pending)
 def get_maganamed_ecrf_target(Dictionary, eCRF_filename):
     """ scan through yaml file to find eCRF target and return index"""
     # Questionnarie daten (Maganamed)
@@ -34,8 +33,8 @@ def get_maganamed_ecrf_target(Dictionary, eCRF_filename):
             return item
 
 
+# Create string for sql query to create table and define columns with data types
 def create_data_types_string_for_query(codebook, eCRF_filename):
-    """" create string for sql query to create table and define columns with data types """
     print(eCRF_filename)
 
     # get target eCRF index in codebook.yaml file
@@ -161,7 +160,7 @@ def import_maganamed_data_into_sqllite(conn, eCRF_filename, csv_data, codebook):
                              "I-CA-P-023$": "I-CA-P-023wrong", "I-CA-P-023v": "I-CA-P-023",
                              }, regex=True, inplace=True)
 
-            #TODO ADD HERE MORE LOGIC TO ADAPT FOR CHANGES IN MAGANAMED_IDS DURING THE PROJECT
+            # TODO ADD HERE MORE LOGIC TO ADAPT FOR CHANGES IN MAGANAMED_IDS DURING THE PROJECT
 
             # As discussed in the e-mails below, we are generating new ID code for some Edinburgh’s participant using the following format “e.g. IC-P-001_c) and under this newly generated ID, we will be collecting clinicians assessment and also any subsequent participant assessment. We will update the data management team on a monthly basis with a list of modified ID for data merging. I have attached our internal SOP for more information on this.
             # Here is our list of modified IDs for January 2024
@@ -177,67 +176,56 @@ def import_maganamed_data_into_sqllite(conn, eCRF_filename, csv_data, codebook):
             # Best wishes,
             # Fatene
 
-
             # import query to insert data (row) into table
-            row_data_import_query = 'INSERT INTO ' + eCRF_name_for_query + ' VALUES (\'' + "\', \'".join(map(str, (list(row)))) + '\')'
+            row_data_import_query = 'INSERT INTO ' + eCRF_name_for_query + ' VALUES (\'' + "\', \'".join(
+                map(str, (list(row)))) + '\')'
             # execute insert query
             cursor.execute(row_data_import_query)
 
 
-## Flattern data = momentapp
-def import_momentapp_data_into_sqllite(conn, filename, csv_data):
+def use_maganamed_data(conn, config):
+    codebook_filename = r"codebook.yaml"
+    maganamed_ecrf_files_path = config['localPaths']['maganamed_ecrf_files']
+
+    # Import codebook_yaml
+    codebook = read_codebook_yaml(codebook_filename)
+
+    # get all eCRF.csv filenames in export folder
+    eCRF_filenames = os.listdir(maganamed_ecrf_files_path)
+
+    # loop through all eCRF files - perform import of data into db
+    ids = pd.DataFrame()
+    for eCRF_filename in eCRF_filenames:
+        # only use files with .csv filetype
+        if eCRF_filename.endswith('.csv'):
+            # load Maganamed csv data into Python
+            csv_data = pd.read_csv(maganamed_ecrf_files_path + '/' + eCRF_filename, sep=";")
+
+            # get all participant_identifiers into ids
+            if len(csv_data['participant_identifier']) > 0:
+                ids = ids.append(csv_data['participant_identifier'])
+                ids.rename({'participant_identifier': eCRF_filename}, inplace=True, axis=0)
+
+            # load Maganamed csv data into SQL db
+            import_maganamed_data_into_sqllite(conn, eCRF_filename, csv_data, codebook)
+
+    # save all participant_identifiers into an excel file
+    ids.to_excel("all_participant_identifiers.xlsx", index=False)
+
+
+# Function to import data into DB
+def import_data_into_sql_lite(conn, filename, csv_data):
     # Create cursor with SQLite db connection
     cursor = conn.cursor()
-
     csv_data.to_sql(filename, conn, if_exists='replace', index=False)
     cursor.close()
     print(f"Table {filename} created")
 
-    # TODO: GO ON HERE WITH NEW CODE!
 
-    ## create final query string
-    #create_table_query = 'CREATE TABLE IF NOT EXISTS ' + site_name_for_query + "_moment_app" + ' (' + table_column_string + ')'
-    ## execute SQL query to create table
-    #cursor.execute(create_table_query)
-
-
-def use_maganamed_data(conn, config):
-        codebook_filename = r"codebook.yaml"
-        maganamed_ecrf_files_path = config['localPaths']['maganamed_ecrf_files']
-
-        # Import codebook_yaml
-        codebook = read_codebook_yaml(codebook_filename)
-
-        # get all eCRF.csv filenames in export folder
-        eCRF_filenames = os.listdir(maganamed_ecrf_files_path)
-
-        # loop through all eCRF files - perform import of data into db
-        ids = pd.DataFrame()
-        for eCRF_filename in eCRF_filenames:
-            # only use files with .csv filetype
-            if eCRF_filename.endswith('.csv'):
-                # load Maganamed csv data into Python
-                csv_data = pd.read_csv(maganamed_ecrf_files_path + '/' + eCRF_filename, sep=";")
-
-                # get all participant_identifiers into ids
-                if len(csv_data['participant_identifier']) > 0:
-                    ids = ids.append(csv_data['participant_identifier'])
-                    ids.rename({'participant_identifier': eCRF_filename}, inplace=True, axis=0)
-
-                # load Maganamed csv data into SQL db
-                import_maganamed_data_into_sqllite(conn, eCRF_filename, csv_data, codebook)
-
-        # save all participant_identifiers into an excel file
-        ids.to_excel("all_participant_identifiers.xlsx", index=False)
-
-
-# TODO: GO ON HERE WITH CODING
-# Still under testing - CURRENTLY NOT WORKING!
-def use_momentapp_data(conn, config):
-    dmmh_momentapp = config['localPaths']['dmmh_momentapp']
-
+# Get all files to import them into database
+def retrieve_input_files(path, connect):
     # get all .csv filenames in export folder
-    for root, dirs, files in os.walk(dmmh_momentapp):
+    for root, dirs, files in os.walk(path):
         for filename in files:
             # only use files with .csv filetype
             if filename.endswith('.csv'):
@@ -245,9 +233,7 @@ def use_momentapp_data(conn, config):
                 csv_data = pd.read_csv(root + '/' + filename, sep=",", low_memory=False)
                 # load Momentapp csv data into SQL db
                 filename = filename.replace(".csv", "")
-                import_momentapp_data_into_sqllite(conn, filename, csv_data)
-
-    # save all participant_identifiers into an excel file
+                import_data_into_sql_lite(connect, filename, csv_data)
 
 
 if __name__ == '__main__':
@@ -262,8 +248,18 @@ if __name__ == '__main__':
     connect = create_connection(sql_lite_database_name)
     if connect is not None: print("Successful connection to SQLite database")
 
-    # use_maganamed_data(conn, config)
-    use_momentapp_data(connect, config)
+    file_directories = {
+        'dmmh_momentapp_path': config['localPaths']['dmmh_momentapp'],
+        'maganamed_path': config['localPaths']['maganamed_ecrf_files'],
+        'movisens_ESM_path': config['localPaths']['movisens_esm'],
+        'movisens_sensing_path': config['localPaths']['movisens_sensing']
+    }
+
+    key = list(file_directories.keys())
+
+    for key, data_directory in file_directories.items():
+        print("Obtaining data from " + key)
+        retrieve_input_files(data_directory, connect)
 
     if connect:
         # Finally commit db transaction/queries and close db connection
